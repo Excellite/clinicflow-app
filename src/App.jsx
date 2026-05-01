@@ -38,7 +38,7 @@ export default function App() {
   const [authError, setAuthError] = useState("");
   const [doctors, setDoctors] = useState(DOCTORS);
   const [analytics, setAnalytics] = useState({ total: 0, today: 0, completed: 0 });
-  const [adminForm, setAdminForm] = useState({ name: "", specialty: "", avatar: "", color: "#2D6A4F" });
+  const [adminForm, setAdminForm] = useState({ name: "", specialty: "", avatar: "", color: "#2D6A4F", image: null });
 
   const goStep = (n) => setStep(n);
   const doctor = DOCTORS.find(d => d.id === selected.doctor);
@@ -135,11 +135,23 @@ export default function App() {
       specialty: adminForm.specialty,
       avatar: adminForm.avatar,
       color: adminForm.color,
+      image: adminForm.image,
       available: ["09:00", "10:00", "11:00", "14:00", "15:00"]
     };
     setDoctors([...doctors, newDoctor]);
-    setAdminForm({ name: "", specialty: "", avatar: "", color: "#2D6A4F" });
+    setAdminForm({ name: "", specialty: "", avatar: "", color: "#2D6A4F", image: null });
     setAuthError("");
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAdminForm(f => ({ ...f, image: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const deleteDoctor = (id) => {
@@ -430,10 +442,14 @@ await supabase.functions.invoke('send-whatsapp-reminder', {
             {step === 1 && (
               <div>
                 <h2 style={{ fontSize: 22, color: "#0F2419", margin: "0 0 16px" }}>Choose a Doctor</h2>
-                {DOCTORS.map(doc => (
+                {doctors.map(doc => (
                   <button key={doc.id} onClick={() => { setSelected(s => ({ ...s, doctor: doc.id })); goStep(2); }}
                     style={{ background: "#fff", border: "2px solid #E8E4DF", borderRadius: 14, padding: "16px 18px", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 14, width: "100%", marginBottom: 12 }}>
-                    <div style={{ width: 46, height: 46, borderRadius: "50%", background: doc.color, color: "#fff", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{doc.avatar}</div>
+                    {doc.image ? (
+                      <img src={doc.image} alt={doc.name} style={{ width: 46, height: 46, borderRadius: "50%", objectFit: "cover" }} />
+                    ) : (
+                      <div style={{ width: 46, height: 46, borderRadius: "50%", background: doc.color, color: "#fff", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{doc.avatar}</div>
+                    )}
                     <div>
                       <div style={{ fontWeight: 700, color: "#0F2419" }}>{doc.name}</div>
                       <div style={{ fontSize: 13, color: "#6B6560" }}>{doc.specialty}</div>
@@ -527,7 +543,7 @@ await supabase.functions.invoke('send-whatsapp-reminder', {
                 >
                   All Doctors
                 </button>
-                {DOCTORS.map(doc => (
+                {doctors.map(doc => (
                   <button
                     key={doc.id}
                     onClick={() => setSelectedDoctorId(doc.id)}
@@ -658,6 +674,12 @@ await supabase.functions.invoke('send-whatsapp-reminder', {
                   onChange={e => setAdminForm(f => ({ ...f, color: e.target.value }))}
                   style={{ width: "100%", padding: "8px", border: "2px solid #E8E4DF", borderRadius: 8, cursor: "pointer" }} />
               </div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 4 }}>DOCTOR PHOTO</label>
+                <input type="file" accept="image/*" onChange={handleImageUpload}
+                  style={{ width: "100%", padding: "8px", border: "2px solid #E8E4DF", borderRadius: 8, fontSize: 12, cursor: "pointer" }} />
+                {adminForm.image && <div style={{ fontSize: 10, color: "#4CAF82", marginTop: 4 }}>✓ Image selected</div>}
+              </div>
               <button onClick={addDoctor} style={{ width: "100%", padding: "10px", background: "#4CAF82", color: "#0F2419", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                 Add Doctor
               </button>
@@ -669,9 +691,13 @@ await supabase.functions.invoke('send-whatsapp-reminder', {
               {doctors.map(doc => (
                 <div key={doc.id} style={{ background: "#fff", border: "2px solid #E8E4DF", borderRadius: 12, padding: "12px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: "50%", background: doc.color, color: "#fff", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>
-                      {doc.avatar}
-                    </div>
+                    {doc.image ? (
+                      <img src={doc.image} alt={doc.name} style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover" }} />
+                    ) : (
+                      <div style={{ width: 36, height: 36, borderRadius: "50%", background: doc.color, color: "#fff", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>
+                        {doc.avatar}
+                      </div>
+                    )}
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: "#0F2419" }}>{doc.name}</div>
                       <div style={{ fontSize: 10, color: "#8C8479" }}>{doc.specialty}</div>
