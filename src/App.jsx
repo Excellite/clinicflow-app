@@ -36,6 +36,9 @@ export default function App() {
   const [queue, setQueue] = useState([]);
   const [selectedDoctorId, setSelectedDoctorId] = useState(null);
   const [authError, setAuthError] = useState("");
+  const [doctors, setDoctors] = useState(DOCTORS);
+  const [analytics, setAnalytics] = useState({ total: 0, today: 0, completed: 0 });
+  const [adminForm, setAdminForm] = useState({ name: "", specialty: "", avatar: "", color: "#2D6A4F" });
 
   const goStep = (n) => setStep(n);
   const doctor = DOCTORS.find(d => d.id === selected.doctor);
@@ -90,6 +93,57 @@ export default function App() {
       setAuthError("Invalid staff credentials");
     }
     setLoading(false);
+  };
+
+  const handleAdminLogin = async () => {
+    setLoading(true);
+    setAuthError("");
+    if (form.email === "admin@clinicflow.com" && form.password === "admin123") {
+      setAuth({ user: { email: form.email }, role: "admin" });
+      setView("admin");
+      setForm({ name: "", phone: "", reason: "", email: "", password: "" });
+      fetchAnalytics();
+    } else {
+      setAuthError("Invalid admin credentials");
+    }
+    setLoading(false);
+  };
+
+  const fetchAnalytics = async () => {
+    try {
+      const { data, error } = await supabase.from('appointments').select('*');
+      if (error) throw error;
+      const today = new Date().toDateString();
+      setAnalytics({
+        total: data?.length || 0,
+        today: data?.filter(a => a.appointment_date === today).length || 0,
+        completed: data?.filter(a => a.status === 'completed').length || 0
+      });
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+    }
+  };
+
+  const addDoctor = () => {
+    if (!adminForm.name || !adminForm.specialty || !adminForm.avatar) {
+      setAuthError("Please fill all doctor details");
+      return;
+    }
+    const newDoctor = {
+      id: Math.max(...doctors.map(d => d.id), 0) + 1,
+      name: adminForm.name,
+      specialty: adminForm.specialty,
+      avatar: adminForm.avatar,
+      color: adminForm.color,
+      available: ["09:00", "10:00", "11:00", "14:00", "15:00"]
+    };
+    setDoctors([...doctors, newDoctor]);
+    setAdminForm({ name: "", specialty: "", avatar: "", color: "#2D6A4F" });
+    setAuthError("");
+  };
+
+  const deleteDoctor = (id) => {
+    setDoctors(doctors.filter(d => d.id !== id));
   };
 
   const handleLogout = () => {
@@ -182,7 +236,7 @@ await supabase.functions.invoke('send-whatsapp-reminder', {
         <span style={{ color: "#F5F2EE", fontWeight: 700, fontSize: 20 }}>Clinic<span style={{ color: "#4CAF82" }}>Flow</span></span>
         {auth.user && (
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <span style={{ color: "#A8C5B5", fontSize: 14 }}>{auth.role === "staff" ? "👤 Staff" : "👤 " + form.name}</span>
+            <span style={{ color: "#A8C5B5", fontSize: 14 }}>{auth.role === "staff" ? "👤 Staff" : auth.role === "admin" ? "⚙️ Admin" : "👤 " + form.name}</span>
             <button onClick={handleLogout} style={{ background: "#8B2D2D", color: "#F5F2EE", border: "none", borderRadius: 20, padding: "6px 18px", cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
               Logout
             </button>
@@ -205,6 +259,9 @@ await supabase.functions.invoke('send-whatsapp-reminder', {
               </button>
               <button onClick={() => setView("staff-login")} style={{ background: "#1B4965", color: "#F5F2EE", border: "none", borderRadius: 12, padding: "16px 32px", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>
                 👨‍💼 Staff Login
+              </button>
+              <button onClick={() => setView("admin-login")} style={{ background: "#6B2D8B", color: "#F5F2EE", border: "none", borderRadius: 12, padding: "16px 32px", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>
+                ⚙️ Admin Login
               </button>
             </div>
           </div>
@@ -255,6 +312,66 @@ await supabase.functions.invoke('send-whatsapp-reminder', {
                 {loading ? "Logging in..." : "Login"}
               </button>
             </div>
+          </div>
+        )}
+
+        {/* STAFF LOGIN */}
+        {view === "staff-login" && !auth.user && (
+          <div>
+            <button onClick={() => setView("landing")} style={{ background: "none", border: "none", color: "#4CAF82", cursor: "pointer", marginBottom: 20, fontSize: 14, fontWeight: 600 }}>← Back</button>
+            
+            <h2 style={{ fontSize: 24, color: "#0F2419", margin: "0 0 8px" }}>Staff Login</h2>
+            <p style={{ fontSize: 14, color: "#6B6560", margin: "0 0 20px" }}>Demo credentials: staff@clinicflow.com / staff123</p>
+            
+            {authError && <div style={{ background: "#8B2D2D", color: "#F5F2EE", padding: "12px 16px", borderRadius: 8, marginBottom: 16, fontSize: 13 }}>⚠️ {authError}</div>}
+            
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 6 }}>EMAIL</label>
+              <input type="email" placeholder="staff@clinicflow.com" value={form.email}
+                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                style={{ width: "100%", padding: "12px 14px", border: "2px solid #E8E4DF", borderRadius: 10, fontSize: 15, fontFamily: "Georgia", background: "#fff", color: "#0F2419", outline: "none", boxSizing: "border-box" }} />
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 6 }}>PASSWORD</label>
+              <input type="password" placeholder="••••••••" value={form.password}
+                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                style={{ width: "100%", padding: "12px 14px", border: "2px solid #E8E4DF", borderRadius: 10, fontSize: 15, fontFamily: "Georgia", background: "#fff", color: "#0F2419", outline: "none", boxSizing: "border-box" }} />
+            </div>
+
+            <button onClick={handleStaffLogin} disabled={!form.email || !form.password || loading} style={{ width: "100%", padding: "14px", background: form.email && form.password ? "#1B4965" : "#C8C3BC", color: form.email && form.password ? "#F5F2EE" : "#0F2419", border: "none", borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: "pointer" }}>
+              {loading ? "Logging in..." : "Staff Login →"}
+            </button>
+          </div>
+        )}
+
+        {/* ADMIN LOGIN */}
+        {view === "admin-login" && !auth.user && (
+          <div>
+            <button onClick={() => setView("landing")} style={{ background: "none", border: "none", color: "#4CAF82", cursor: "pointer", marginBottom: 20, fontSize: 14, fontWeight: 600 }}>← Back</button>
+            
+            <h2 style={{ fontSize: 24, color: "#0F2419", margin: "0 0 8px" }}>Admin Login</h2>
+            <p style={{ fontSize: 14, color: "#6B6560", margin: "0 0 20px" }}>Demo credentials: admin@clinicflow.com / admin123</p>
+            
+            {authError && <div style={{ background: "#8B2D2D", color: "#F5F2EE", padding: "12px 16px", borderRadius: 8, marginBottom: 16, fontSize: 13 }}>⚠️ {authError}</div>}
+            
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 6 }}>EMAIL</label>
+              <input type="email" placeholder="admin@clinicflow.com" value={form.email}
+                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                style={{ width: "100%", padding: "12px 14px", border: "2px solid #E8E4DF", borderRadius: 10, fontSize: 15, fontFamily: "Georgia", background: "#fff", color: "#0F2419", outline: "none", boxSizing: "border-box" }} />
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 6 }}>PASSWORD</label>
+              <input type="password" placeholder="••••••••" value={form.password}
+                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                style={{ width: "100%", padding: "12px 14px", border: "2px solid #E8E4DF", borderRadius: 10, fontSize: 15, fontFamily: "Georgia", background: "#fff", color: "#0F2419", outline: "none", boxSizing: "border-box" }} />
+            </div>
+
+            <button onClick={handleAdminLogin} disabled={!form.email || !form.password || loading} style={{ width: "100%", padding: "14px", background: form.email && form.password ? "#6B2D8B" : "#C8C3BC", color: form.email && form.password ? "#F5F2EE" : "#0F2419", border: "none", borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: "pointer" }}>
+              {loading ? "Logging in..." : "Admin Login →"}
+            </button>
           </div>
         )}
 
@@ -485,6 +602,87 @@ await supabase.functions.invoke('send-whatsapp-reminder', {
               ))}
             </div>
             <button onClick={reset} style={{ background: "#0F2419", color: "#4CAF82", border: "none", borderRadius: 12, padding: "14px 32px", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>Book Another →</button>
+          </div>
+        )}
+
+        {/* ADMIN DASHBOARD */}
+        {view === "admin" && auth.role === "admin" && (
+          <div>
+            <h2 style={{ fontSize: 24, color: "#0F2419", margin: "0 0 20px" }}>📊 Admin Dashboard</h2>
+            
+            {/* Analytics */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 24 }}>
+              <div style={{ background: "#fff", border: "2px solid #E8E4DF", borderRadius: 12, padding: "16px", textAlign: "center" }}>
+                <div style={{ fontSize: 28, fontWeight: 700, color: "#4CAF82" }}>{analytics.total}</div>
+                <div style={{ fontSize: 12, color: "#8C8479", marginTop: 6 }}>Total Bookings</div>
+              </div>
+              <div style={{ background: "#fff", border: "2px solid #E8E4DF", borderRadius: 12, padding: "16px", textAlign: "center" }}>
+                <div style={{ fontSize: 28, fontWeight: 700, color: "#1B4965" }}>{analytics.today}</div>
+                <div style={{ fontSize: 12, color: "#8C8479", marginTop: 6 }}>Today</div>
+              </div>
+              <div style={{ background: "#fff", border: "2px solid #E8E4DF", borderRadius: 12, padding: "16px", textAlign: "center" }}>
+                <div style={{ fontSize: 28, fontWeight: 700, color: "#6B2D8B" }}>{analytics.completed}</div>
+                <div style={{ fontSize: 12, color: "#8C8479", marginTop: 6 }}>Completed</div>
+              </div>
+            </div>
+
+            {/* Doctor Management */}
+            <h3 style={{ fontSize: 18, color: "#0F2419", margin: "24px 0 16px" }}>👨‍⚕️ Doctor Management</h3>
+
+            {authError && <div style={{ background: "#8B2D2D", color: "#F5F2EE", padding: "12px 16px", borderRadius: 8, marginBottom: 16, fontSize: 13 }}>⚠️ {authError}</div>}
+
+            {/* Add Doctor Form */}
+            <div style={{ background: "#fff", border: "2px solid #E8E4DF", borderRadius: 12, padding: "16px", marginBottom: 20 }}>
+              <h4 style={{ fontSize: 14, color: "#0F2419", margin: "0 0 12px" }}>Add New Doctor</h4>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 4 }}>FULL NAME</label>
+                <input type="text" placeholder="Dr. Name" value={adminForm.name}
+                  onChange={e => setAdminForm(f => ({ ...f, name: e.target.value }))}
+                  style={{ width: "100%", padding: "10px 12px", border: "2px solid #E8E4DF", borderRadius: 8, fontSize: 14, fontFamily: "Georgia", background: "#F5F2EE", color: "#0F2419", outline: "none", boxSizing: "border-box" }} />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 4 }}>SPECIALTY</label>
+                <input type="text" placeholder="e.g. Cardiology" value={adminForm.specialty}
+                  onChange={e => setAdminForm(f => ({ ...f, specialty: e.target.value }))}
+                  style={{ width: "100%", padding: "10px 12px", border: "2px solid #E8E4DF", borderRadius: 8, fontSize: 14, fontFamily: "Georgia", background: "#F5F2EE", color: "#0F2419", outline: "none", boxSizing: "border-box" }} />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 4 }}>INITIALS</label>
+                <input type="text" placeholder="e.g. AO" maxLength="2" value={adminForm.avatar}
+                  onChange={e => setAdminForm(f => ({ ...f, avatar: e.target.value.toUpperCase() }))}
+                  style={{ width: "100%", padding: "10px 12px", border: "2px solid #E8E4DF", borderRadius: 8, fontSize: 14, fontFamily: "Georgia", background: "#F5F2EE", color: "#0F2419", outline: "none", boxSizing: "border-box" }} />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 4 }}>AVATAR COLOR</label>
+                <input type="color" value={adminForm.color}
+                  onChange={e => setAdminForm(f => ({ ...f, color: e.target.value }))}
+                  style={{ width: "100%", padding: "8px", border: "2px solid #E8E4DF", borderRadius: 8, cursor: "pointer" }} />
+              </div>
+              <button onClick={addDoctor} style={{ width: "100%", padding: "10px", background: "#4CAF82", color: "#0F2419", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                Add Doctor
+              </button>
+            </div>
+
+            {/* Doctors List */}
+            <h4 style={{ fontSize: 14, color: "#0F2419", margin: "16px 0 12px" }}>Active Doctors ({doctors.length})</h4>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+              {doctors.map(doc => (
+                <div key={doc.id} style={{ background: "#fff", border: "2px solid #E8E4DF", borderRadius: 12, padding: "12px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: "50%", background: doc.color, color: "#fff", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>
+                      {doc.avatar}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#0F2419" }}>{doc.name}</div>
+                      <div style={{ fontSize: 10, color: "#8C8479" }}>{doc.specialty}</div>
+                    </div>
+                  </div>
+                  <button onClick={() => deleteDoctor(doc.id)} style={{ width: "100%", padding: "6px", background: "#8B2D2D", color: "#F5F2EE", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </main>
