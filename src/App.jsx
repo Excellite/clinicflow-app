@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from './supabase';
 
 const DOCTORS = [
@@ -32,9 +32,39 @@ export default function App() {
   const [confirmed, setConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [reference, setReference] = useState("");
+  const [queue, setQueue] = useState([]);
+  const [selectedDoctorId, setSelectedDoctorId] = useState(null);
 
   const goStep = (n) => setStep(n);
   const doctor = DOCTORS.find(d => d.id === selected.doctor);
+
+  useEffect(() => {
+    if (view === "queue") {
+      fetchQueue();
+      const interval = setInterval(fetchQueue, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [view, selectedDoctorId]);
+
+  const fetchQueue = async () => {
+    try {
+      let query = supabase
+        .from('appointments')
+        .select('*')
+        .eq('status', 'scheduled')
+        .order('appointment_date, appointment_time', { ascending: true });
+      
+      if (selectedDoctorId) {
+        query = query.eq('doctor_id', selectedDoctorId);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      setQueue(data || []);
+    } catch (error) {
+      console.error('Error fetching queue:', error);
+    }
+  };
 
   const handleConfirm = async () => {
     setLoading(true);
@@ -194,6 +224,90 @@ await supabase.functions.invoke('send-whatsapp-reminder', {
                   style={{ width: "100%", padding: "16px", background: form.name && form.phone ? "#4CAF82" : "#C8C3BC", color: "#0F2419", border: "none", borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: "pointer", fontFamily: "Georgia" }}>
                   {loading ? "Saving..." : "Confirm Appointment →"}
                 </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* QUEUE */}
+        {view === "queue" && (
+          <div>
+            <h2 style={{ fontSize: 22, color: "#0F2419", margin: "0 0 16px" }}>Patient Queue</h2>
+            
+            {/* Doctor Filter */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8 }}>
+                <button
+                  onClick={() => setSelectedDoctorId(null)}
+                  style={{
+                    background: selectedDoctorId === null ? "#0F2419" : "#fff",
+                    color: selectedDoctorId === null ? "#4CAF82" : "#0F2419",
+                    border: "2px solid #E8E4DF",
+                    borderRadius: 20,
+                    padding: "8px 16px",
+                    cursor: "pointer",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    whiteSpace: "nowrap"
+                  }}
+                >
+                  All Doctors
+                </button>
+                {DOCTORS.map(doc => (
+                  <button
+                    key={doc.id}
+                    onClick={() => setSelectedDoctorId(doc.id)}
+                    style={{
+                      background: selectedDoctorId === doc.id ? doc.color : "#fff",
+                      color: selectedDoctorId === doc.id ? "#fff" : "#0F2419",
+                      border: "2px solid #E8E4DF",
+                      borderRadius: 20,
+                      padding: "8px 16px",
+                      cursor: "pointer",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      whiteSpace: "nowrap"
+                    }}
+                  >
+                    {doc.avatar}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Queue List */}
+            {queue.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "40px 20px", color: "#8C8479" }}>
+                <p style={{ fontSize: 16 }}>No patients in queue</p>
+              </div>
+            ) : (
+              <div>
+                {queue.map((appt, idx) => (
+                  <div key={appt.id || idx} style={{ background: "#fff", border: "2px solid #E8E4DF", borderRadius: 14, padding: "16px 18px", marginBottom: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 12 }}>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#0F2419" }}>{appt.patient_name}</div>
+                        <div style={{ fontSize: 13, color: "#6B6560", marginTop: 2 }}>{appt.doctor_name}</div>
+                      </div>
+                      <div style={{ background: "#4CAF82", color: "#fff", padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
+                        #{idx + 1}
+                      </div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 13 }}>
+                      <div>
+                        <span style={{ color: "#8C8479" }}>📅 Time</span>
+                        <div style={{ color: "#0F2419", fontWeight: 600 }}>{appt.appointment_time}</div>
+                      </div>
+                      <div>
+                        <span style={{ color: "#8C8479" }}>🆔 Ref</span>
+                        <div style={{ color: "#0F2419", fontWeight: 600 }}>{appt.reference}</div>
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 12, padding: "8px 12px", background: "#F5F2EE", borderRadius: 8, fontSize: 12, color: "#6B6560" }}>
+                      {appt.reason}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
