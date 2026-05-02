@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from './supabase';
+import LandingPage from './LandingPage';
 
 const DOCTORS = [
   { id: 1, name: "Dr. Adaeze Okafor", specialty: "General Practice", avatar: "AO", available: ["09:00", "10:00", "11:30", "14:00", "15:30"], color: "#2D6A4F" },
@@ -25,6 +26,9 @@ const DATES = (() => {
 })();
 
 export default function App() {
+  // showLanding controls whether we show the landing page or the app
+  const [showLanding, setShowLanding] = useState(true);
+
   const [auth, setAuth] = useState({ user: null, role: null });
   const [view, setView] = useState("landing");
   const [step, setStep] = useState(1);
@@ -47,7 +51,6 @@ export default function App() {
     setLoading(true);
     setAuthError("");
     try {
-      // Demo: Create local patient account
       if (form.email && form.password && form.name) {
         setAuth({ user: { email: form.email }, role: "patient", name: form.name });
         setView("book");
@@ -65,7 +68,6 @@ export default function App() {
     setLoading(true);
     setAuthError("");
     try {
-      // Demo patient: demo@clinicflow.com / demo123
       if (form.email === "demo@clinicflow.com" && form.password === "demo123") {
         setAuth({ user: { email: form.email }, role: "patient", name: "Demo Patient" });
         setView("book");
@@ -155,443 +157,259 @@ export default function App() {
     setDoctors(doctors.filter(d => d.id !== id));
   };
 
-  const handleLogout = () => {
-    setAuth({ user: null, role: null });
-    setView("landing");
-    setForm({ name: "", phone: "", reason: "", email: "", password: "" });
-    setConfirmed(false);
-  };
-
-  useEffect(() => {
-    if (view === "queue" && auth.role === "staff") {
-      fetchQueue();
-      const interval = setInterval(fetchQueue, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [view, selectedDoctorId, auth.role]);
-
-  const fetchQueue = async () => {
-    try {
-      let query = supabase
-        .from('appointments')
-        .select('*')
-        .eq('status', 'scheduled')
-        .order('appointment_date, appointment_time', { ascending: true });
-      
-      if (selectedDoctorId) {
-        query = query.eq('doctor_id', selectedDoctorId);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      setQueue(data || []);
-    } catch (error) {
-      console.error('Error fetching queue:', error);
-    }
-  };
-
-  const handleConfirm = async () => {
-    setLoading(true);
-    const ref = `CF-${Math.floor(Math.random() * 9000 + 1000)}`;
-
-    const { error } = await supabase.from('appointments').insert([{
-      patient_name: form.name,
-      phone: form.phone,
-      reason: form.reason,
-      doctor_id: selected.doctor,
-      doctor_name: doctor?.name,
-      appointment_date: selected.date,
-      appointment_time: selected.time,
-      reference: ref,
-      status: 'scheduled'
-    }]);
-
-    setLoading(false);
-
-    if (error) {
-      alert('Booking failed. Please try again.');
-      console.error(error);
-      return;
-    }
-
-    setReference(ref);
-    // Call WhatsApp reminder function
-await supabase.functions.invoke('send-whatsapp-reminder', {
-  body: {
-    patient_name: form.name,
-    phone: form.phone,
-    doctor_name: doctor?.name,
-    appointment_date: selected.date,
-    appointment_time: selected.time,
-    reference: ref
-  }
-})
-    setConfirmed(true);
-    setView('confirm');
-  };
-
   const reset = () => {
     setStep(1);
     setSelected({ doctor: null, date: null, time: null });
-    setForm(f => ({ ...f, name: "", reason: "" }));
+    setForm({ name: "", phone: "", reason: "", email: "", password: "" });
     setConfirmed(false);
+    setReference("");
     setView("book");
   };
 
+  // If showing landing page, render LandingPage with a callback to enter the app
+  if (showLanding) {
+    return <LandingPage onGetStarted={() => setShowLanding(false)} />;
+  }
+
+  // Otherwise render the existing clinic app
   return (
-    <div style={{ minHeight: "100vh", background: "#F5F2EE", fontFamily: "'Georgia', serif", display: "flex", flexDirection: "column" }}>
-      {/* Header */}
-      <header style={{ background: "#0F2419", padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 64 }}>
-        <span style={{ color: "#F5F2EE", fontWeight: 700, fontSize: 20 }}>Clinic<span style={{ color: "#4CAF82" }}>Flow</span></span>
+    <div style={{ minHeight: "100vh", background: "#F5F2EE", fontFamily: "Georgia, serif" }}>
+      {/* HEADER */}
+      <header style={{ background: "#0F2419", padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 32, height: 32, background: "#4CAF82", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>🏥</div>
+          <span style={{ color: "#F5F2EE", fontWeight: 700, fontSize: 18 }}>ClinicFlow</span>
+        </div>
         {auth.user && (
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <span style={{ color: "#A8C5B5", fontSize: 14 }}>{auth.role === "staff" ? "👤 Staff" : auth.role === "admin" ? "⚙️ Admin" : "👤 " + (auth.name || form.name)}</span>
-            <button onClick={handleLogout} style={{ background: "#8B2D2D", color: "#F5F2EE", border: "none", borderRadius: 20, padding: "6px 18px", cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
-              Logout
-            </button>
-          </div>
+          <button onClick={() => { setAuth({ user: null, role: null }); setView("landing"); setShowLanding(true); }}
+            style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "#F5F2EE", padding: "6px 14px", borderRadius: 8, fontSize: 12, cursor: "pointer" }}>
+            Sign Out
+          </button>
         )}
       </header>
 
-      <main style={{ flex: 1, padding: "24px 16px", maxWidth: 560, margin: "0 auto", width: "100%" }}>
+      <main style={{ maxWidth: 480, margin: "0 auto", padding: "24px 16px" }}>
 
-        {/* LANDING PAGE */}
-        {view === "landing" && !auth.user && (
-          <div style={{ textAlign: "center", paddingTop: 60 }}>
-            <div style={{ fontSize: 64, marginBottom: 20 }}>🏥</div>
-            <h1 style={{ fontSize: 32, color: "#0F2419", margin: "0 0 8px" }}>ClinicFlow</h1>
-            <p style={{ fontSize: 16, color: "#6B6560", margin: "0 0 40px" }}>Healthcare booking made simple</p>
-            
+        {/* LOGIN SELECTION */}
+        {view === "landing" && (
+          <div style={{ textAlign: "center", paddingTop: 32 }}>
+            <div style={{ width: 72, height: 72, background: "#4CAF82", borderRadius: 20, margin: "0 auto 20px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36 }}>🏥</div>
+            <h1 style={{ fontSize: 28, color: "#0F2419", margin: "0 0 8px" }}>ClinicFlow</h1>
+            <p style={{ fontSize: 15, color: "#6B6560", margin: "0 0 40px" }}>Healthcare booking made simple</p>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <button onClick={() => setView("patient-auth")} style={{ background: "#4CAF82", color: "#0F2419", border: "none", borderRadius: 12, padding: "16px 32px", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>
-                👤 Patient Login / Sign Up
-              </button>
-              <button onClick={() => setView("staff-login")} style={{ background: "#1B4965", color: "#F5F2EE", border: "none", borderRadius: 12, padding: "16px 32px", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>
-                👨‍💼 Staff Login
-              </button>
-              <button onClick={() => setView("admin-login")} style={{ background: "#6B2D8B", color: "#F5F2EE", border: "none", borderRadius: 12, padding: "16px 32px", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>
-                ⚙️ Admin Login
-              </button>
+              <button onClick={() => setView("patientAuth")} style={{ background: "#4CAF82", color: "#0F2419", border: "none", borderRadius: 14, padding: "16px", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>🧑‍⚕️ Patient Login / Sign Up</button>
+              <button onClick={() => setView("staffAuth")} style={{ background: "#1B4965", color: "#F5F2EE", border: "none", borderRadius: 14, padding: "16px", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>👨‍💼 Staff Login</button>
+              <button onClick={() => setView("adminAuth")} style={{ background: "#6B2D8B", color: "#F5F2EE", border: "none", borderRadius: 14, padding: "16px", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>⚙️ Admin Login</button>
             </div>
           </div>
         )}
 
         {/* PATIENT AUTH */}
-        {view === "patient-auth" && !auth.user && (
+        {view === "patientAuth" && (
           <div>
-            <button onClick={() => setView("landing")} style={{ background: "none", border: "none", color: "#4CAF82", cursor: "pointer", marginBottom: 20, fontSize: 14, fontWeight: 600 }}>← Back</button>
-            
-            <h2 style={{ fontSize: 24, color: "#0F2419", margin: "0 0 20px" }}>Patient Portal</h2>            <p style={{ fontSize: 14, color: "#6B6560", margin: "0 0 20px" }}>Demo login: demo@clinicflow.com / demo123</p>            
+            <button onClick={() => setView("landing")} style={{ background: "none", border: "none", color: "#4CAF82", fontSize: 14, cursor: "pointer", marginBottom: 20 }}>← Back</button>
+            <h2 style={{ fontSize: 22, color: "#0F2419", margin: "0 0 24px" }}>Patient Portal</h2>
             {authError && <div style={{ background: "#8B2D2D", color: "#F5F2EE", padding: "12px 16px", borderRadius: 8, marginBottom: 16, fontSize: 13 }}>⚠️ {authError}</div>}
-            
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 6 }}>FULL NAME</label>
-              <input type="text" placeholder="Your name" value={form.name}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 4 }}>FULL NAME</label>
+              <input type="text" placeholder="Your name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                 style={{ width: "100%", padding: "12px 14px", border: "2px solid #E8E4DF", borderRadius: 10, fontSize: 15, fontFamily: "Georgia", background: "#fff", color: "#0F2419", outline: "none", boxSizing: "border-box" }} />
             </div>
-
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 6 }}>PHONE</label>
-              <input type="tel" placeholder="Your phone" value={form.phone}
-                onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 4 }}>EMAIL</label>
+              <input type="email" placeholder="you@email.com" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                 style={{ width: "100%", padding: "12px 14px", border: "2px solid #E8E4DF", borderRadius: 10, fontSize: 15, fontFamily: "Georgia", background: "#fff", color: "#0F2419", outline: "none", boxSizing: "border-box" }} />
             </div>
-
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 6 }}>EMAIL</label>
-              <input type="email" placeholder="your@email.com" value={form.email}
-                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                style={{ width: "100%", padding: "12px 14px", border: "2px solid #E8E4DF", borderRadius: 10, fontSize: 15, fontFamily: "Georgia", background: "#fff", color: "#0F2419", outline: "none", boxSizing: "border-box" }} />
-            </div>
-
             <div style={{ marginBottom: 20 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 6 }}>PASSWORD</label>
-              <input type="password" placeholder="At least 6 characters" value={form.password}
-                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+              <label style={{ fontSize: 11, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 4 }}>PASSWORD</label>
+              <input type="password" placeholder="••••••••" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                 style={{ width: "100%", padding: "12px 14px", border: "2px solid #E8E4DF", borderRadius: 10, fontSize: 15, fontFamily: "Georgia", background: "#fff", color: "#0F2419", outline: "none", boxSizing: "border-box" }} />
             </div>
-
-            <div style={{ display: "flex", gap: 12 }}>
-              <button onClick={handlePatientSignup} disabled={!form.email || !form.password || loading} style={{ flex: 1, padding: "14px", background: form.email && form.password ? "#4CAF82" : "#C8C3BC", color: "#0F2419", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
-                {loading ? "Creating..." : "Sign Up"}
-              </button>
-              <button onClick={handlePatientLogin} disabled={!form.email || !form.password || loading} style={{ flex: 1, padding: "14px", background: form.email && form.password ? "#1B4965" : "#C8C3BC", color: form.email && form.password ? "#F5F2EE" : "#0F2419", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
-                {loading ? "Logging in..." : "Login"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* STAFF LOGIN */}
-        {view === "staff-login" && !auth.user && (
-          <div>
-            <button onClick={() => setView("landing")} style={{ background: "none", border: "none", color: "#4CAF82", cursor: "pointer", marginBottom: 20, fontSize: 14, fontWeight: 600 }}>← Back</button>
-            
-            <h2 style={{ fontSize: 24, color: "#0F2419", margin: "0 0 8px" }}>Staff Login</h2>
-            <p style={{ fontSize: 14, color: "#6B6560", margin: "0 0 20px" }}>Demo credentials: staff@clinicflow.com / staff123</p>
-            
-            {authError && <div style={{ background: "#8B2D2D", color: "#F5F2EE", padding: "12px 16px", borderRadius: 8, marginBottom: 16, fontSize: 13 }}>⚠️ {authError}</div>}
-            
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 6 }}>EMAIL</label>
-              <input type="email" placeholder="staff@clinicflow.com" value={form.email}
-                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                style={{ width: "100%", padding: "12px 14px", border: "2px solid #E8E4DF", borderRadius: 10, fontSize: 15, fontFamily: "Georgia", background: "#fff", color: "#0F2419", outline: "none", boxSizing: "border-box" }} />
-            </div>
-
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 6 }}>PASSWORD</label>
-              <input type="password" placeholder="••••••••" value={form.password}
-                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                style={{ width: "100%", padding: "12px 14px", border: "2px solid #E8E4DF", borderRadius: 10, fontSize: 15, fontFamily: "Georgia", background: "#fff", color: "#0F2419", outline: "none", boxSizing: "border-box" }} />
-            </div>
-
-            <button onClick={handleStaffLogin} disabled={!form.email || !form.password || loading} style={{ width: "100%", padding: "14px", background: form.email && form.password ? "#1B4965" : "#C8C3BC", color: form.email && form.password ? "#F5F2EE" : "#0F2419", border: "none", borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: "pointer" }}>
-              {loading ? "Logging in..." : "Staff Login →"}
+            <button onClick={handlePatientSignup} disabled={loading}
+              style={{ width: "100%", padding: "14px", background: "#4CAF82", color: "#0F2419", border: "none", borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: "pointer", marginBottom: 12 }}>
+              {loading ? "..." : "Sign Up"}
+            </button>
+            <button onClick={handlePatientLogin} disabled={loading}
+              style={{ width: "100%", padding: "14px", background: "#0F2419", color: "#4CAF82", border: "none", borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: "pointer" }}>
+              {loading ? "..." : "Log In"}
             </button>
           </div>
         )}
 
-        {/* ADMIN LOGIN */}
-        {view === "admin-login" && !auth.user && (
+        {/* STAFF AUTH */}
+        {view === "staffAuth" && (
           <div>
-            <button onClick={() => setView("landing")} style={{ background: "none", border: "none", color: "#4CAF82", cursor: "pointer", marginBottom: 20, fontSize: 14, fontWeight: 600 }}>← Back</button>
-            
-            <h2 style={{ fontSize: 24, color: "#0F2419", margin: "0 0 8px" }}>Admin Login</h2>
-            <p style={{ fontSize: 14, color: "#6B6560", margin: "0 0 20px" }}>Demo credentials: admin@clinicflow.com / admin123</p>
-            
+            <button onClick={() => setView("landing")} style={{ background: "none", border: "none", color: "#4CAF82", fontSize: 14, cursor: "pointer", marginBottom: 20 }}>← Back</button>
+            <h2 style={{ fontSize: 22, color: "#0F2419", margin: "0 0 24px" }}>Staff Login</h2>
             {authError && <div style={{ background: "#8B2D2D", color: "#F5F2EE", padding: "12px 16px", borderRadius: 8, marginBottom: 16, fontSize: 13 }}>⚠️ {authError}</div>}
-            
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 6 }}>EMAIL</label>
-              <input type="email" placeholder="admin@clinicflow.com" value={form.email}
-                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 4 }}>EMAIL</label>
+              <input type="email" placeholder="staff@clinicflow.com" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                 style={{ width: "100%", padding: "12px 14px", border: "2px solid #E8E4DF", borderRadius: 10, fontSize: 15, fontFamily: "Georgia", background: "#fff", color: "#0F2419", outline: "none", boxSizing: "border-box" }} />
             </div>
-
             <div style={{ marginBottom: 20 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 6 }}>PASSWORD</label>
-              <input type="password" placeholder="••••••••" value={form.password}
-                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+              <label style={{ fontSize: 11, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 4 }}>PASSWORD</label>
+              <input type="password" placeholder="••••••••" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                 style={{ width: "100%", padding: "12px 14px", border: "2px solid #E8E4DF", borderRadius: 10, fontSize: 15, fontFamily: "Georgia", background: "#fff", color: "#0F2419", outline: "none", boxSizing: "border-box" }} />
             </div>
-
-            <button onClick={handleAdminLogin} disabled={!form.email || !form.password || loading} style={{ width: "100%", padding: "14px", background: form.email && form.password ? "#6B2D8B" : "#C8C3BC", color: form.email && form.password ? "#F5F2EE" : "#0F2419", border: "none", borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: "pointer" }}>
-              {loading ? "Logging in..." : "Admin Login →"}
+            <button onClick={handleStaffLogin} disabled={loading}
+              style={{ width: "100%", padding: "14px", background: "#1B4965", color: "#F5F2EE", border: "none", borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: "pointer" }}>
+              {loading ? "..." : "Log In as Staff"}
             </button>
           </div>
         )}
 
-        {/* STAFF LOGIN */}
-        {view === "staff-login" && !auth.user && (
+        {/* ADMIN AUTH */}
+        {view === "adminAuth" && (
           <div>
-            <button onClick={() => setView("landing")} style={{ background: "none", border: "none", color: "#4CAF82", cursor: "pointer", marginBottom: 20, fontSize: 14, fontWeight: 600 }}>← Back</button>
-            
-            <h2 style={{ fontSize: 24, color: "#0F2419", margin: "0 0 8px" }}>Staff Login</h2>
-            <p style={{ fontSize: 14, color: "#6B6560", margin: "0 0 20px" }}>Demo credentials: staff@clinicflow.com / staff123</p>
-            
+            <button onClick={() => setView("landing")} style={{ background: "none", border: "none", color: "#4CAF82", fontSize: 14, cursor: "pointer", marginBottom: 20 }}>← Back</button>
+            <h2 style={{ fontSize: 22, color: "#0F2419", margin: "0 0 24px" }}>Admin Login</h2>
             {authError && <div style={{ background: "#8B2D2D", color: "#F5F2EE", padding: "12px 16px", borderRadius: 8, marginBottom: 16, fontSize: 13 }}>⚠️ {authError}</div>}
-            
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 6 }}>EMAIL</label>
-              <input type="email" placeholder="staff@clinicflow.com" value={form.email}
-                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 4 }}>EMAIL</label>
+              <input type="email" placeholder="admin@clinicflow.com" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                 style={{ width: "100%", padding: "12px 14px", border: "2px solid #E8E4DF", borderRadius: 10, fontSize: 15, fontFamily: "Georgia", background: "#fff", color: "#0F2419", outline: "none", boxSizing: "border-box" }} />
             </div>
-
             <div style={{ marginBottom: 20 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 6 }}>PASSWORD</label>
-              <input type="password" placeholder="••••••••" value={form.password}
-                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+              <label style={{ fontSize: 11, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 4 }}>PASSWORD</label>
+              <input type="password" placeholder="••••••••" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                 style={{ width: "100%", padding: "12px 14px", border: "2px solid #E8E4DF", borderRadius: 10, fontSize: 15, fontFamily: "Georgia", background: "#fff", color: "#0F2419", outline: "none", boxSizing: "border-box" }} />
             </div>
-
-            <button onClick={handleStaffLogin} disabled={!form.email || !form.password || loading} style={{ width: "100%", padding: "14px", background: form.email && form.password ? "#1B4965" : "#C8C3BC", color: form.email && form.password ? "#F5F2EE" : "#0F2419", border: "none", borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: "pointer" }}>
-              {loading ? "Logging in..." : "Staff Login →"}
+            <button onClick={handleAdminLogin} disabled={loading}
+              style={{ width: "100%", padding: "14px", background: "#6B2D8B", color: "#F5F2EE", border: "none", borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: "pointer" }}>
+              {loading ? "..." : "Log In as Admin"}
             </button>
           </div>
         )}
 
-        {/* BOOKING (Patient only) */}
-        {view === "book" && auth.role === "patient" && !confirmed && (
+        {/* BOOKING FLOW */}
+        {view === "book" && auth.role === "patient" && (
           <div>
-            {/* Steps */}
-            <div style={{ display: "flex", alignItems: "center", marginBottom: 28 }}>
-              {["Doctor", "Date", "Time", "Details"].map((label, i) => {
-                const n = i + 1;
-                return (
-                  <div key={n} style={{ display: "flex", alignItems: "center", flex: 1 }}>
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                      <div style={{ width: 30, height: 30, borderRadius: "50%", background: step > n ? "#4CAF82" : step === n ? "#0F2419" : "#D4CFC8", color: step > n ? "#0F2419" : step === n ? "#4CAF82" : "#8C8479", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, border: step === n ? "2px solid #4CAF82" : "none" }}>
-                        {step > n ? "✓" : n}
-                      </div>
-                      <span style={{ fontSize: 10, color: step === n ? "#0F2419" : "#8C8479", marginTop: 3 }}>{label}</span>
-                    </div>
-                    {i < 3 && <div style={{ flex: 1, height: 2, background: step > n ? "#4CAF82" : "#D4CFC8", marginBottom: 14 }} />}
-                  </div>
-                );
-              })}
-            </div>
+            <h2 style={{ fontSize: 22, color: "#0F2419", margin: "0 0 20px" }}>Book Appointment</h2>
 
-            {/* Step 1 */}
             {step === 1 && (
               <div>
-                <h2 style={{ fontSize: 22, color: "#0F2419", margin: "0 0 16px" }}>Choose a Doctor</h2>
+                <p style={{ fontSize: 13, color: "#8C8479", marginBottom: 16 }}>Select a doctor</p>
                 {doctors.map(doc => (
-                  <button key={doc.id} onClick={() => { setSelected(s => ({ ...s, doctor: doc.id })); goStep(2); }}
-                    style={{ background: "#fff", border: "2px solid #E8E4DF", borderRadius: 14, padding: "16px 18px", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 14, width: "100%", marginBottom: 12 }}>
+                  <div key={doc.id} onClick={() => { setSelected(s => ({ ...s, doctor: doc.id })); goStep(2); }}
+                    style={{ background: "#fff", border: `2px solid ${selected.doctor === doc.id ? "#4CAF82" : "#E8E4DF"}`, borderRadius: 14, padding: "16px", marginBottom: 12, display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
                     {doc.image ? (
-                      <img src={doc.image} alt={doc.name} style={{ width: 46, height: 46, borderRadius: "50%", objectFit: "cover" }} />
+                      <img src={doc.image} alt={doc.name} style={{ width: 48, height: 48, borderRadius: "50%", objectFit: "cover" }} />
                     ) : (
-                      <div style={{ width: 46, height: 46, borderRadius: "50%", background: doc.color, color: "#fff", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{doc.avatar}</div>
+                      <div style={{ width: 48, height: 48, borderRadius: "50%", background: doc.color, color: "#fff", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>{doc.avatar}</div>
                     )}
                     <div>
-                      <div style={{ fontWeight: 700, color: "#0F2419" }}>{doc.name}</div>
-                      <div style={{ fontSize: 13, color: "#6B6560" }}>{doc.specialty}</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: "#0F2419" }}>{doc.name}</div>
+                      <div style={{ fontSize: 13, color: "#8C8479" }}>{doc.specialty}</div>
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             )}
 
-            {/* Step 2 */}
             {step === 2 && (
               <div>
-                <button onClick={() => goStep(1)} style={{ background: "none", border: "none", color: "#4CAF82", cursor: "pointer", marginBottom: 12 }}>← Back</button>
-                <h2 style={{ fontSize: 22, color: "#0F2419", margin: "0 0 16px" }}>Pick a Date</h2>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
-                  {DATES.map((d, i) => (
-                    <button key={i} onClick={() => { setSelected(s => ({ ...s, date: d.full })); goStep(3); }}
-                      style={{ background: selected.date === d.full ? "#0F2419" : "#fff", border: selected.date === d.full ? "2px solid #4CAF82" : "2px solid #E8E4DF", borderRadius: 12, padding: "14px 8px", cursor: "pointer", textAlign: "center" }}>
-                      <div style={{ fontSize: 11, color: selected.date === d.full ? "#4CAF82" : "#8C8479" }}>{d.label.toUpperCase()}</div>
-                      <div style={{ fontSize: 22, fontWeight: 700, color: selected.date === d.full ? "#F5F2EE" : "#0F2419" }}>{d.date}</div>
-                      <div style={{ fontSize: 11, color: selected.date === d.full ? "#A8C5B5" : "#9C9690" }}>{d.month}</div>
-                    </button>
+                <button onClick={() => goStep(1)} style={{ background: "none", border: "none", color: "#4CAF82", fontSize: 14, cursor: "pointer", marginBottom: 16 }}>← Back</button>
+                <p style={{ fontSize: 13, color: "#8C8479", marginBottom: 16 }}>Select a date</p>
+                <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 8, marginBottom: 20 }}>
+                  {DATES.map(d => (
+                    <div key={d.full} onClick={() => setSelected(s => ({ ...s, date: d.full }))}
+                      style={{ minWidth: 64, background: selected.date === d.full ? "#4CAF82" : "#fff", border: `2px solid ${selected.date === d.full ? "#4CAF82" : "#E8E4DF"}`, borderRadius: 12, padding: "12px 8px", textAlign: "center", cursor: "pointer" }}>
+                      <div style={{ fontSize: 11, color: selected.date === d.full ? "#0F2419" : "#8C8479" }}>{d.label}</div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: selected.date === d.full ? "#0F2419" : "#0F2419" }}>{d.date}</div>
+                      <div style={{ fontSize: 11, color: selected.date === d.full ? "#0F2419" : "#8C8479" }}>{d.month}</div>
+                    </div>
                   ))}
                 </div>
+                <p style={{ fontSize: 13, color: "#8C8479", marginBottom: 12 }}>Select a time</p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 20 }}>
+                  {doctor?.available.map(t => (
+                    <div key={t} onClick={() => setSelected(s => ({ ...s, time: t }))}
+                      style={{ background: selected.time === t ? "#4CAF82" : "#fff", border: `2px solid ${selected.time === t ? "#4CAF82" : "#E8E4DF"}`, borderRadius: 10, padding: "12px", textAlign: "center", fontSize: 14, fontWeight: 600, color: selected.time === t ? "#0F2419" : "#0F2419", cursor: "pointer" }}>
+                      {t}
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => selected.date && selected.time && goStep(3)} disabled={!selected.date || !selected.time}
+                  style={{ width: "100%", padding: "14px", background: selected.date && selected.time ? "#4CAF82" : "#E8E4DF", color: "#0F2419", border: "none", borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: selected.date && selected.time ? "pointer" : "not-allowed" }}>
+                  Continue →
+                </button>
               </div>
             )}
 
-            {/* Step 3 */}
             {step === 3 && (
               <div>
-                <button onClick={() => goStep(2)} style={{ background: "none", border: "none", color: "#4CAF82", cursor: "pointer", marginBottom: 12 }}>← Back</button>
-                <h2 style={{ fontSize: 22, color: "#0F2419", margin: "0 0 16px" }}>Select a Time</h2>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-                  {doctor?.available.map(t => (
-                    <button key={t} onClick={() => { setSelected(s => ({ ...s, time: t })); goStep(4); }}
-                      style={{ background: selected.time === t ? "#0F2419" : "#fff", border: selected.time === t ? "2px solid #4CAF82" : "2px solid #E8E4DF", borderRadius: 12, padding: "16px 8px", cursor: "pointer", fontSize: 16, fontWeight: 700, color: selected.time === t ? "#4CAF82" : "#0F2419" }}>
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Step 4 */}
-            {step === 4 && (
-              <div>
-                <button onClick={() => goStep(3)} style={{ background: "none", border: "none", color: "#4CAF82", cursor: "pointer", marginBottom: 12 }}>← Back</button>
-                <h2 style={{ fontSize: 22, color: "#0F2419", margin: "0 0 16px" }}>Your Details</h2>
-                {[
-                  { key: "name", label: "Full Name", placeholder: "e.g. Amaka Johnson", type: "text" },
-                  { key: "phone", label: "Phone / WhatsApp", placeholder: "e.g. 0801 234 5678", type: "tel" },
-                  { key: "reason", label: "Reason for Visit", placeholder: "Brief description...", type: "text" },
-                ].map(field => (
-                  <div key={field.key} style={{ marginBottom: 14 }}>
-                    <label style={{ fontSize: 12, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 6 }}>{field.label.toUpperCase()}</label>
-                    <input type={field.type} placeholder={field.placeholder} value={form[field.key]}
-                      onChange={e => setForm(f => ({ ...f, [field.key]: e.target.value }))}
+                <button onClick={() => goStep(2)} style={{ background: "none", border: "none", color: "#4CAF82", fontSize: 14, cursor: "pointer", marginBottom: 16 }}>← Back</button>
+                <p style={{ fontSize: 13, color: "#8C8479", marginBottom: 16 }}>Your details</p>
+                {["name", "phone", "reason"].map(field => (
+                  <div key={field} style={{ marginBottom: 12 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 4 }}>{field.toUpperCase()}</label>
+                    <input type="text" placeholder={field === "name" ? "Full name" : field === "phone" ? "08012345678" : "Reason for visit"}
+                      value={form[field]} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
                       style={{ width: "100%", padding: "12px 14px", border: "2px solid #E8E4DF", borderRadius: 10, fontSize: 15, fontFamily: "Georgia", background: "#fff", color: "#0F2419", outline: "none", boxSizing: "border-box" }} />
                   </div>
                 ))}
-                <button onClick={handleConfirm} disabled={!form.name || !form.phone || loading}
-                  style={{ width: "100%", padding: "16px", background: form.name && form.phone ? "#4CAF82" : "#C8C3BC", color: "#0F2419", border: "none", borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: "pointer", fontFamily: "Georgia" }}>
-                  {loading ? "Saving..." : "Confirm Appointment →"}
+                <button onClick={async () => {
+                  if (!form.name || !form.phone) return;
+                  setLoading(true);
+                  const ref = "CF-" + Math.random().toString(36).substr(2, 6).toUpperCase();
+                  setReference(ref);
+                  try {
+                    await supabase.from('appointments').insert([{
+                      patient_name: form.name, phone: form.phone, reason: form.reason,
+                      doctor_id: selected.doctor, doctor_name: doctor?.name,
+                      appointment_date: selected.date, appointment_time: selected.time,
+                      reference: ref, status: 'pending'
+                    }]);
+                  } catch (e) { console.error(e); }
+                  setLoading(false);
+                  setView("confirm");
+                }} disabled={loading || !form.name || !form.phone}
+                  style={{ width: "100%", padding: "14px", background: "#4CAF82", color: "#0F2419", border: "none", borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: "pointer" }}>
+                  {loading ? "Booking..." : "Confirm Booking →"}
                 </button>
               </div>
             )}
           </div>
         )}
 
-        {/* QUEUE (Staff only) */}
+        {/* STAFF QUEUE */}
         {view === "queue" && auth.role === "staff" && (
           <div>
-            <h2 style={{ fontSize: 22, color: "#0F2419", margin: "0 0 16px" }}>Patient Queue</h2>
-            
-            {/* Doctor Filter */}
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8 }}>
-                <button
-                  onClick={() => setSelectedDoctorId(null)}
-                  style={{
-                    background: selectedDoctorId === null ? "#0F2419" : "#fff",
-                    color: selectedDoctorId === null ? "#4CAF82" : "#0F2419",
-                    border: "2px solid #E8E4DF",
-                    borderRadius: 20,
-                    padding: "8px 16px",
-                    cursor: "pointer",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    whiteSpace: "nowrap"
-                  }}
-                >
-                  All Doctors
+            <h2 style={{ fontSize: 22, color: "#0F2419", margin: "0 0 20px" }}>📋 Today's Queue</h2>
+            <div style={{ display: "flex", gap: 10, marginBottom: 20, overflowX: "auto" }}>
+              <button onClick={() => setSelectedDoctorId(null)}
+                style={{ padding: "8px 16px", background: selectedDoctorId === null ? "#4CAF82" : "#fff", border: "2px solid #E8E4DF", borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+                All
+              </button>
+              {doctors.map(d => (
+                <button key={d.id} onClick={() => setSelectedDoctorId(d.id)}
+                  style={{ padding: "8px 16px", background: selectedDoctorId === d.id ? "#4CAF82" : "#fff", border: "2px solid #E8E4DF", borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+                  {d.name.split(" ")[1]}
                 </button>
-                {doctors.map(doc => (
-                  <button
-                    key={doc.id}
-                    onClick={() => setSelectedDoctorId(doc.id)}
-                    style={{
-                      background: selectedDoctorId === doc.id ? doc.color : "#fff",
-                      color: selectedDoctorId === doc.id ? "#fff" : "#0F2419",
-                      border: "2px solid #E8E4DF",
-                      borderRadius: 20,
-                      padding: "8px 16px",
-                      cursor: "pointer",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      whiteSpace: "nowrap"
-                    }}
-                  >
-                    {doc.avatar}
-                  </button>
-                ))}
-              </div>
+              ))}
             </div>
-
-            {/* Queue List */}
             {queue.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "40px 20px", color: "#8C8479" }}>
-                <p style={{ fontSize: 16 }}>No patients in queue</p>
+              <div style={{ textAlign: "center", padding: "48px 0", color: "#8C8479" }}>
+                <div style={{ fontSize: 48, marginBottom: 16 }}>📭</div>
+                <p>No appointments yet</p>
               </div>
             ) : (
               <div>
-                {queue.map((appt, idx) => (
+                {queue.filter(a => !selectedDoctorId || a.doctor_id === selectedDoctorId).map((appt, idx) => (
                   <div key={appt.id || idx} style={{ background: "#fff", border: "2px solid #E8E4DF", borderRadius: 14, padding: "16px 18px", marginBottom: 12 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 12 }}>
                       <div>
                         <div style={{ fontSize: 14, fontWeight: 700, color: "#0F2419" }}>{appt.patient_name}</div>
                         <div style={{ fontSize: 13, color: "#6B6560", marginTop: 2 }}>{appt.doctor_name}</div>
                       </div>
-                      <div style={{ background: "#4CAF82", color: "#fff", padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
-                        #{idx + 1}
-                      </div>
+                      <div style={{ background: "#4CAF82", color: "#fff", padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600 }}>#{idx + 1}</div>
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 13 }}>
-                      <div>
-                        <span style={{ color: "#8C8479" }}>📅 Time</span>
-                        <div style={{ color: "#0F2419", fontWeight: 600 }}>{appt.appointment_time}</div>
-                      </div>
-                      <div>
-                        <span style={{ color: "#8C8479" }}>🆔 Ref</span>
-                        <div style={{ color: "#0F2419", fontWeight: 600 }}>{appt.reference}</div>
-                      </div>
+                      <div><span style={{ color: "#8C8479" }}>📅 Time</span><div style={{ color: "#0F2419", fontWeight: 600 }}>{appt.appointment_time}</div></div>
+                      <div><span style={{ color: "#8C8479" }}>🆔 Ref</span><div style={{ color: "#0F2419", fontWeight: 600 }}>{appt.reference}</div></div>
                     </div>
-                    <div style={{ marginTop: 12, padding: "8px 12px", background: "#F5F2EE", borderRadius: 8, fontSize: 12, color: "#6B6560" }}>
-                      {appt.reason}
-                    </div>
+                    <div style={{ marginTop: 12, padding: "8px 12px", background: "#F5F2EE", borderRadius: 8, fontSize: 12, color: "#6B6560" }}>{appt.reason}</div>
                   </div>
                 ))}
               </div>
@@ -599,7 +417,7 @@ await supabase.functions.invoke('send-whatsapp-reminder', {
           </div>
         )}
 
-        {/* CONFIRMATION (Patient only) */}
+        {/* CONFIRMATION */}
         {view === "confirm" && auth.role === "patient" && (
           <div style={{ textAlign: "center", paddingTop: 32 }}>
             <div style={{ width: 72, height: 72, borderRadius: "50%", background: "#4CAF82", margin: "0 auto 20px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32 }}>✓</div>
@@ -621,8 +439,6 @@ await supabase.functions.invoke('send-whatsapp-reminder', {
         {view === "admin" && auth.role === "admin" && (
           <div>
             <h2 style={{ fontSize: 24, color: "#0F2419", margin: "0 0 20px" }}>📊 Admin Dashboard</h2>
-            
-            {/* Analytics */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 24 }}>
               <div style={{ background: "#fff", border: "2px solid #E8E4DF", borderRadius: 12, padding: "16px", textAlign: "center" }}>
                 <div style={{ fontSize: 28, fontWeight: 700, color: "#4CAF82" }}>{analytics.total}</div>
@@ -638,36 +454,22 @@ await supabase.functions.invoke('send-whatsapp-reminder', {
               </div>
             </div>
 
-            {/* Doctor Management */}
             <h3 style={{ fontSize: 18, color: "#0F2419", margin: "24px 0 16px" }}>👨‍⚕️ Doctor Management</h3>
-
             {authError && <div style={{ background: "#8B2D2D", color: "#F5F2EE", padding: "12px 16px", borderRadius: 8, marginBottom: 16, fontSize: 13 }}>⚠️ {authError}</div>}
 
-            {/* Add Doctor Form */}
             <div style={{ background: "#fff", border: "2px solid #E8E4DF", borderRadius: 12, padding: "16px", marginBottom: 20 }}>
               <h4 style={{ fontSize: 14, color: "#0F2419", margin: "0 0 12px" }}>Add New Doctor</h4>
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 4 }}>FULL NAME</label>
-                <input type="text" placeholder="Dr. Name" value={adminForm.name}
-                  onChange={e => setAdminForm(f => ({ ...f, name: e.target.value }))}
-                  style={{ width: "100%", padding: "10px 12px", border: "2px solid #E8E4DF", borderRadius: 8, fontSize: 14, fontFamily: "Georgia", background: "#F5F2EE", color: "#0F2419", outline: "none", boxSizing: "border-box" }} />
-              </div>
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 4 }}>SPECIALTY</label>
-                <input type="text" placeholder="e.g. Cardiology" value={adminForm.specialty}
-                  onChange={e => setAdminForm(f => ({ ...f, specialty: e.target.value }))}
-                  style={{ width: "100%", padding: "10px 12px", border: "2px solid #E8E4DF", borderRadius: 8, fontSize: 14, fontFamily: "Georgia", background: "#F5F2EE", color: "#0F2419", outline: "none", boxSizing: "border-box" }} />
-              </div>
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 4 }}>INITIALS</label>
-                <input type="text" placeholder="e.g. AO" maxLength="2" value={adminForm.avatar}
-                  onChange={e => setAdminForm(f => ({ ...f, avatar: e.target.value.toUpperCase() }))}
-                  style={{ width: "100%", padding: "10px 12px", border: "2px solid #E8E4DF", borderRadius: 8, fontSize: 14, fontFamily: "Georgia", background: "#F5F2EE", color: "#0F2419", outline: "none", boxSizing: "border-box" }} />
-              </div>
+              {["name", "specialty", "avatar"].map(field => (
+                <div key={field} style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 4 }}>{field === "avatar" ? "INITIALS" : field.toUpperCase()}</label>
+                  <input type="text" placeholder={field === "name" ? "Dr. Name" : field === "specialty" ? "e.g. Cardiology" : "e.g. AO"} maxLength={field === "avatar" ? 2 : undefined}
+                    value={adminForm[field]} onChange={e => setAdminForm(f => ({ ...f, [field]: field === "avatar" ? e.target.value.toUpperCase() : e.target.value }))}
+                    style={{ width: "100%", padding: "10px 12px", border: "2px solid #E8E4DF", borderRadius: 8, fontSize: 14, fontFamily: "Georgia", background: "#F5F2EE", color: "#0F2419", outline: "none", boxSizing: "border-box" }} />
+                </div>
+              ))}
               <div style={{ marginBottom: 12 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: "#5A5550", display: "block", marginBottom: 4 }}>AVATAR COLOR</label>
-                <input type="color" value={adminForm.color}
-                  onChange={e => setAdminForm(f => ({ ...f, color: e.target.value }))}
+                <input type="color" value={adminForm.color} onChange={e => setAdminForm(f => ({ ...f, color: e.target.value }))}
                   style={{ width: "100%", padding: "8px", border: "2px solid #E8E4DF", borderRadius: 8, cursor: "pointer" }} />
               </div>
               <div style={{ marginBottom: 12 }}>
@@ -676,12 +478,9 @@ await supabase.functions.invoke('send-whatsapp-reminder', {
                   style={{ width: "100%", padding: "8px", border: "2px solid #E8E4DF", borderRadius: 8, fontSize: 12, cursor: "pointer" }} />
                 {adminForm.image && <div style={{ fontSize: 10, color: "#4CAF82", marginTop: 4 }}>✓ Image selected</div>}
               </div>
-              <button onClick={addDoctor} style={{ width: "100%", padding: "10px", background: "#4CAF82", color: "#0F2419", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                Add Doctor
-              </button>
+              <button onClick={addDoctor} style={{ width: "100%", padding: "10px", background: "#4CAF82", color: "#0F2419", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Add Doctor</button>
             </div>
 
-            {/* Doctors List */}
             <h4 style={{ fontSize: 14, color: "#0F2419", margin: "16px 0 12px" }}>Active Doctors ({doctors.length})</h4>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
               {doctors.map(doc => (
@@ -690,18 +489,14 @@ await supabase.functions.invoke('send-whatsapp-reminder', {
                     {doc.image ? (
                       <img src={doc.image} alt={doc.name} style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover" }} />
                     ) : (
-                      <div style={{ width: 36, height: 36, borderRadius: "50%", background: doc.color, color: "#fff", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>
-                        {doc.avatar}
-                      </div>
+                      <div style={{ width: 36, height: 36, borderRadius: "50%", background: doc.color, color: "#fff", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>{doc.avatar}</div>
                     )}
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: "#0F2419" }}>{doc.name}</div>
                       <div style={{ fontSize: 10, color: "#8C8479" }}>{doc.specialty}</div>
                     </div>
                   </div>
-                  <button onClick={() => deleteDoctor(doc.id)} style={{ width: "100%", padding: "6px", background: "#8B2D2D", color: "#F5F2EE", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-                    Delete
-                  </button>
+                  <button onClick={() => deleteDoctor(doc.id)} style={{ width: "100%", padding: "6px", background: "#8B2D2D", color: "#F5F2EE", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Delete</button>
                 </div>
               ))}
             </div>
@@ -712,5 +507,6 @@ await supabase.functions.invoke('send-whatsapp-reminder', {
       <footer style={{ textAlign: "center", padding: "16px", fontSize: 12, color: "#B0AAA3", borderTop: "1px solid #E8E4DF" }}>
         ClinicFlow · Built for Lagos Private Healthcare
       </footer>
-    </div>);
+    </div>
+  );
 }
