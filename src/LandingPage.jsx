@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import './LandingPage.css'
 
-export default function LandingPage() {
+export default function LandingPage({ onGetStarted }) {
   useEffect(() => {
     const reveals = document.querySelectorAll('.reveal')
     const observer = new IntersectionObserver(
@@ -27,7 +27,7 @@ export default function LandingPage() {
           <li><a href="#how">How it Works</a></li>
           <li><a href="#features">Features</a></li>
           <li><a href="#pricing">Pricing</a></li>
-          <li><a href="#signup" className="nav-cta">Get Started Free</a></li>
+<button onClick={onGetStarted} className="nav-cta">Get Started Free</button>
         </ul>
       </nav>
 
@@ -37,7 +37,7 @@ export default function LandingPage() {
         <h1>Your Clinic's Digital<br /><em>Booking System</em><br />in Minutes</h1>
         <p>ClinicFlow gives any private clinic or hospital their own branded appointment booking platform — with WhatsApp reminders, patient records, and admin dashboard. No IT team needed.</p>
         <div className="hero-actions">
-          <a href="#signup" className="btn-primary">Start Free Trial →</a>
+        <button onClick={onGetStarted} className="btn-primary">Start Free Trial →</button>
           <a href="#how" className="btn-ghost">See How It Works</a>
         </div>
         <div className="stats">
