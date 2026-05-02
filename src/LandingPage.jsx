@@ -271,7 +271,7 @@ export default function LandingPage({ onGetStarted }) {
       <section className="cta" id="signup">
         <h2>Ready to digitise<br />your clinic?</h2>
         <p>Join hundreds of Lagos clinics already on ClinicFlow.<br />Free to start. No credit card needed.</p>
-        <a href="#" className="btn-dark">Create Your Clinic Page →</a>
+     <button onClick={onGetStarted} className="btn-dark">Create Your Clinic Page →</button>
       </section>
 
       {/* FOOTER */}

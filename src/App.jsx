@@ -193,7 +193,7 @@ export default function App() {
       <header style={{ background: "#0F2419", padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ width: 32, height: 32, background: "#4CAF82", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>🏥</div>
-          <span style={{ color: "#F5F2EE", fontWeight: 700, fontSize: 18 }}>ClinicFlow</span>
+<span onClick={() => setShowLanding(true)} style={{ color: "#F5F2EE", fontWeight: 700, fontSize: 18, cursor: "pointer" }}>ClinicFlow</span>
         </div>
         {auth.user && (
           <button onClick={() => { setAuth({ user: null, role: null }); setView("landing"); setShowLanding(true); }}
