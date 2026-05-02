@@ -47,19 +47,16 @@ export default function App() {
     setLoading(true);
     setAuthError("");
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: form.email,
-        password: form.password,
-        options: {
-          data: { name: form.name, phone: form.phone }
-        }
-      });
-      if (error) throw error;
-      setAuth({ user: data.user, role: "patient" });
-      setView("book");
-      setForm({ name: "", phone: "", reason: "", email: "", password: "" });
+      // Demo: Create local patient account
+      if (form.email && form.password && form.name) {
+        setAuth({ user: { email: form.email }, role: "patient", name: form.name });
+        setView("book");
+        setForm({ name: "", phone: "", reason: "", email: "", password: "" });
+        return;
+      }
+      setAuthError("Please fill all fields");
     } catch (error) {
-      setAuthError(error.message);
+      setAuthError(error?.message || "Signup failed");
     }
     setLoading(false);
   };
@@ -68,16 +65,16 @@ export default function App() {
     setLoading(true);
     setAuthError("");
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: form.email,
-        password: form.password
-      });
-      if (error) throw error;
-      setAuth({ user: data.user, role: "patient" });
-      setView("book");
-      setForm({ name: "", phone: "", reason: "", email: "", password: "" });
+      // Demo patient: demo@clinicflow.com / demo123
+      if (form.email === "demo@clinicflow.com" && form.password === "demo123") {
+        setAuth({ user: { email: form.email }, role: "patient", name: "Demo Patient" });
+        setView("book");
+        setForm({ name: "", phone: "", reason: "", email: "", password: "" });
+      } else {
+        setAuthError("Use demo@clinicflow.com / demo123 or sign up");
+      }
     } catch (error) {
-      setAuthError(error.message);
+      setAuthError(error?.message || "Login failed");
     }
     setLoading(false);
   };
@@ -248,7 +245,7 @@ await supabase.functions.invoke('send-whatsapp-reminder', {
         <span style={{ color: "#F5F2EE", fontWeight: 700, fontSize: 20 }}>Clinic<span style={{ color: "#4CAF82" }}>Flow</span></span>
         {auth.user && (
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <span style={{ color: "#A8C5B5", fontSize: 14 }}>{auth.role === "staff" ? "👤 Staff" : auth.role === "admin" ? "⚙️ Admin" : "👤 " + form.name}</span>
+            <span style={{ color: "#A8C5B5", fontSize: 14 }}>{auth.role === "staff" ? "👤 Staff" : auth.role === "admin" ? "⚙️ Admin" : "👤 " + (auth.name || form.name)}</span>
             <button onClick={handleLogout} style={{ background: "#8B2D2D", color: "#F5F2EE", border: "none", borderRadius: 20, padding: "6px 18px", cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
               Logout
             </button>
@@ -284,8 +281,7 @@ await supabase.functions.invoke('send-whatsapp-reminder', {
           <div>
             <button onClick={() => setView("landing")} style={{ background: "none", border: "none", color: "#4CAF82", cursor: "pointer", marginBottom: 20, fontSize: 14, fontWeight: 600 }}>← Back</button>
             
-            <h2 style={{ fontSize: 24, color: "#0F2419", margin: "0 0 20px" }}>Patient Portal</h2>
-            
+            <h2 style={{ fontSize: 24, color: "#0F2419", margin: "0 0 20px" }}>Patient Portal</h2>            <p style={{ fontSize: 14, color: "#6B6560", margin: "0 0 20px" }}>Demo login: demo@clinicflow.com / demo123</p>            
             {authError && <div style={{ background: "#8B2D2D", color: "#F5F2EE", padding: "12px 16px", borderRadius: 8, marginBottom: 16, fontSize: 13 }}>⚠️ {authError}</div>}
             
             <div style={{ marginBottom: 16 }}>
