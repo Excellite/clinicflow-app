@@ -39,6 +39,21 @@ export default function App() {
   const [reference, setReference] = useState("");
   const [queue, setQueue] = useState([]);
   const [selectedDoctorId, setSelectedDoctorId] = useState(null);
+
+  useEffect(() => {
+    if (auth.role === "staff") {
+      const fetchQueue = async () => {
+        const { data } = await supabase
+          .from('appointments')
+          .select('*')
+          .order('appointment_time', { ascending: true });
+        if (data) setQueue(data);
+      };
+      fetchQueue();
+      const interval = setInterval(fetchQueue, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [auth.role]);
   const [authError, setAuthError] = useState("");
   const [doctors, setDoctors] = useState(DOCTORS);
   const [analytics, setAnalytics] = useState({ total: 0, today: 0, completed: 0 });
@@ -168,7 +183,7 @@ export default function App() {
 
   // If showing landing page, render LandingPage with a callback to enter the app
   if (showLanding) {
-    return <LandingPage onGetStarted={() => setShowLanding(false)} />;
+    return <LandingPage onGetStarted={() => { setShowLanding(false); setView("landing"); }} />;
   }
 
   // Otherwise render the existing clinic app
